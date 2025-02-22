@@ -16,7 +16,7 @@ baseurl:          /bielikowo
 relative_url:     /bielikowo
 remote_theme:     just-the-docs/just-the-docs
 color_scheme:     light
-logo:             "/assets/images/logo.png"
+# logo:             "/assets/images/logo.png"
 
 author:
   name:           'Qooba'
