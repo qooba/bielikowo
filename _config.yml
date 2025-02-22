@@ -1,0 +1,53 @@
+# Dependencies
+markdown:         redcarpet
+highlighter:      pygments
+
+# Permalinks
+#permalink:        pretty
+#relative_permalinks: true
+
+# Setup
+name:             blog.qooba.net
+title:            Bielikowo
+tagline:          'Bielikowo'
+description:      'Bielikowo'
+url:              https://blog.qooba.net
+baseurl:          /bielikowo
+relative_url:     /bielikowo
+remote_theme:     just-the-docs/just-the-docs
+color_scheme:     dark
+logo:             "/assets/images/sign.png"
+
+author:
+  name:           'Qooba'
+  url:            https://blog.qooba.net/
+
+paginate:         5
+
+# Custom vars
+
+aux_links:
+  "Bielikowo on GitHub":
+    - "//github.com/qooba/bielikowo"
+
+github:
+  repo:           https://github.com/qooba/bielikowo
+
+plugins:
+  - jekyll-gist
+  - jekyll-coffeescript
+  - jekyll-seo-tag
+
+
+#ga_tracking: XXXXXXXXXXXX # Google Analytics tracking code
+#ga_tracking_anonymize_ip: true # Use GDPR compliant Google Analytics settings (true/nil by default)
+
+# defaults:
+#   -
+#     scope:
+#       path: "" # an empty string here means all files in the project
+#     values:
+#       layout: "default"
+
+#theme: jekyll-theme-slate
+#theme: minimal-mistakes-jekyll
