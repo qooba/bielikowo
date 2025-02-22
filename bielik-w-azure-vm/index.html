@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+
+	<title>BIELIKOWO - BIELIK W AZURE VM</title>
+
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+	<link rel="stylesheet" href="/revealjs/dist/reset.css">
+	<link rel="stylesheet" href="/revealjs/dist/reveal.css">
+	<!-- <link rel="stylesheet" href="dist/theme/black.css" id="theme"> -->
+	<link rel="stylesheet" href="/revealjs/dist/theme/white.css" id="theme">
+
+	<!-- <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"> -->
+	<link href="https://fonts.googleapis.com/css2?family=Fontdiner+Swanky&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap" rel="stylesheet">
+	<!-- Theme used for syntax highlighting of code -->
+	<link rel="stylesheet" href="/revealjs/plugin/highlight/styles/stackoverflow-light.css">
+	<style>
+		.swanky {
+			font-family: 'Fontdiner Swanky' !important;
+		}
+
+		.luckiest {
+			font-family: 'Luckiest Guy' !important;
+		}
+
+		.code-wrapper {
+			width: 120% !important;
+			margin-left: -10% !important;
+		}
+	</style>
+</head>
+
+<body>
+
+	<div class="reveal">
+
+		<!-- Any section element inside of this container is displayed as a slide -->
+		<div class="slides">
+
+
+			<section data-background="images/title.png" data-background-size="70%"></section>
+
+			<section>
+				<center>
+					<img src="images/azure.png" width="100%" />
+					<br/>
+					<span class="luckiest" style="font-size: 30px;">zakladamy konto i subskrypcję w Azure</span>
+				</center>
+			</section>
+
+			<!-- <section data-background="images/SpeakLeash.00.jpeg" data-background-size="90%"></section> -->
+			<!-- <section data-background="gifs/compare3.gif" data-background-size="90%"></section> -->
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">Przygotowanie środowiska</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-3|5-7|9-10|12-13"><script type="text/template">
+						# KLONUJEMY BIELIKOWO
+						git clone https://github.com/qooba/bielikowo
+						cd bielikowo
+
+						# INSTALUJEMY TERRAFORM
+						wget https://releases.hashicorp.com/terraform/1.10.5/terraform_1.10.5_linux_386.zip
+						unzip terraform_1.10.5_linux_386.zip -d ./bin
+
+						# INSTALUJEMY AZURE CLI
+						curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+						# GENERUJEMY KLUCZ SSH
+						ssh-keygen -t rsa -b 4096 -C "your_email@example.com" -f ./terraform/ssh/id_rsa
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">Terraform</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-12|14-17|19-31|39-51|79-107"><script type="text/template">
+terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.0"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {}
+}
+
+resource "azurerm_resource_group" "rg_vm" {
+  name     = "${var.resource_group_name}_VM"
+  location = var.location
+}
+
+resource "azurerm_virtual_network" "vnet" {
+  name                = "bielikVNet"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.rg_vm.location
+  resource_group_name = azurerm_resource_group.rg_vm.name
+}
+
+resource "azurerm_subnet" "subnet" {
+  name                 = "bielikSubnet"
+  resource_group_name  = azurerm_resource_group.rg_vm.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = ["10.0.1.0/24"]
+}
+
+resource "azurerm_network_security_group" "nsg" {
+  name                = "bielikNSG"
+  location            = azurerm_resource_group.rg_vm.location
+  resource_group_name = azurerm_resource_group.rg_vm.name
+}
+
+resource "azurerm_network_security_rule" "nsr" {
+  name                        = "SSH"
+  priority                    = 1001
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "22"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "*"
+  resource_group_name         = azurerm_resource_group.rg_vm.name
+  network_security_group_name = azurerm_network_security_group.nsg.name
+}
+
+# Network Interface and Public IP for VM1
+resource "azurerm_public_ip" "public_ip1" {
+  name                = "bielikPublicIP1"
+  location            = azurerm_resource_group.rg_vm.location
+  resource_group_name = azurerm_resource_group.rg_vm.name
+  allocation_method   = "Dynamic"
+}
+
+resource "azurerm_network_interface" "nic1" {
+  name                = "bielikNIC1"
+  location            = azurerm_resource_group.rg_vm.location
+  resource_group_name = azurerm_resource_group.rg_vm.name
+
+  ip_configuration {
+    name                          = "myNICConfig1"
+    subnet_id                     = azurerm_subnet.subnet.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.public_ip1.id
+  }
+}
+
+resource "azurerm_network_interface_security_group_association" "nsg_assoc" {
+  network_interface_id      = azurerm_network_interface.nic1.id
+  network_security_group_id = azurerm_network_security_group.nsg.id
+}
+
+resource "azurerm_linux_virtual_machine" "vm1" {
+  name                = "bielikVM1"
+  resource_group_name = azurerm_resource_group.rg_vm.name
+  location            = azurerm_resource_group.rg_vm.location
+  size                = "Standard_NC4as_T4_v3"
+  admin_username      = "bielik"
+  priority = "Spot"
+  eviction_policy = "Deallocate"
+  network_interface_ids = [
+    azurerm_network_interface.nic1.id,
+  ]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "StandardSSD_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+
+  computer_name                   = "bielik-gpu-spot-1"
+  admin_ssh_key {
+    username   = "bielik"
+    public_key = file("./ssh/id_rsa.pub")
+  }
+
+}
+
+
+					</script></code></pre>
+			</section>
+
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">Tworzymy infrastrukturę</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-2|4-6"><script type="text/template">
+#LOGOWANIE DO AZURE
+$HOME/bin/az login
+
+# URUCHAMIAMY KOD TERRAFORM
+terraform init
+terraform apply
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">Logujemy się na VM przez SSH</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1|2"><script type="text/template">
+PUBLIC_IP=$($HOME/bin/az vm list-ip-addresses --name bielikVM1 --resource-group BIELIK_VM --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
+ssh -i ./ssh/id_rsa -Y bielik@$PUBLIC_IP
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">Przygotowujemy VM - NVIDIA</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-5|7-8"><script type="text/template">
+sudo apt update
+sudo apt upgrade
+sudo add-apt-repository ppa:graphics-drivers/ppa
+sudo apt-get install nvidia-driver-560
+sudo reboot
+
+# PO UROCHOMIENIU PONOWNIE LOGUJEMY SIĘ PRZEZ SSH I SPRAWDZAMY KOMENDĘ
+nvidia-smi
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">Przygotowujemy VM - DOCKER</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-5|7-9|11-13"><script type="text/template">
+# INSTALUJEMY DOCKER
+curl -fsSL https://get.docker.com | sh
+sudo systemctl enable --now docker
+
+docker --version
+
+# DODAJEMY UŻYTKOWNIKA DO GRUPY DOCKER
+sudo usermod -aG docker $USER
+newgrp docker
+
+# DOCKER COMPOSE
+sudo curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker
+
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">Przygotowujemy VM - NVIDIA CONTAINER TOOLKIT</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-8|10-12|14-15"><script type="text/template">
+# NVIDIA CONTAINER TOOLKIT
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
+  && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+    sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+sudo apt-get update
+sudo apt-get install -y nvidia-container-toolkit
+
+# KONFIGURACJA DOCKER
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+
+# BENCHMARK GPU
+docker run --gpus all nvcr.io/nvidia/k8s/cuda-sample:nbody nbody -gpu -benchmark
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">URUCHAMIAMY BIELIKA - KWANTYZACJA Q4 </span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-9"><script type="text/template">
+COMPUTE_CAPABILITIES=75
+VERSION_SHA=f1a56f6
+
+docker run -it --rm --name bielik -p 8080:80 --gpus all \
+	-v $HOME/.cache/huggingface:/root/.cache/huggingface \
+	ghcr.io/ericlbuehler/mistral.rs:cuda-$COMPUTE_CAPABILITIES-sha-$VERSION_SHA \
+	gguf \
+	--quantized-model-id speakleash/Bielik-11B-v2.3-Instruct-GGUF \
+	--quantized-filename Bielik-11B-v2.3-Instruct.Q4_K_M.gguf
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">URUCHAMIAMY BIELIKA - KWANTYZACJA Q8 </span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-9"><script type="text/template">
+COMPUTE_CAPABILITIES=75
+VERSION_SHA=f1a56f6
+
+docker run -it --rm --name bielik -p 8080:80 --gpus all \
+	-v $HOME/.cache/huggingface:/root/.cache/huggingface \
+	ghcr.io/ericlbuehler/mistral.rs:cuda-$COMPUTE_CAPABILITIES-sha-$VERSION_SHA \
+	gguf \
+	--quantized-model-id speakleash/Bielik-11B-v2.3-Instruct-GGUF \
+	--quantized-filename Bielik-11B-v2.3-Instruct.Q8_0.gguf
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">TUNEL SSH DO LOKALNEJ MASZYNY</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-2"><script type="text/template">
+PUBLIC_IP=$($HOME/bin/az vm list-ip-addresses --name bielikVM1 --resource-group BIELIK_VM --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
+ssh bielik@$PUBLIC_IP -i ./ssh/id_rsa -L 8080:localhost:8080 -TN /bin/false
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">TESTUJEMY API - NA LOKALNEJ MASZYNIE</span>
+				<pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-5|7-16"><script type="text/template">
+from openai import AsyncOpenAI
+
+client = AsyncOpenAI(
+    base_url="http://localhost:8080/v1"
+)
+
+response = await client.chat.completions.create(
+    model="speakleash/Bielik-11B-v2.3-Instruct-GGUF",
+    messages=[
+        {"role": "system", "content": "Jesteś bardzo pomocnym asystentem"},
+        {"role": "user", "content": "Witaj świecie"}
+    ],
+    temperature=0.5
+)
+
+print(response.choices[0].message.content)
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">ZABEZPIECZAMY API - API KEY Z DOCKER COMPOSE</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="|5-18|20-29"><script type="text/template">
+cat <<EOF > bielik.yml
+version: '3.8'
+
+services:
+  bielik:
+    image: ghcr.io/ericlbuehler/mistral.rs:cuda-75-sha-f1a56f6
+    container_name: bielik
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    volumes:
+      - $HOME/.cache/huggingface:/root/.cache/huggingface
+    command: gguf --quantized-model-id speakleash/Bielik-11B-v2.3-Instruct-GGUF --quantized-filename Bielik-11B-v2.3-Instruct.Q8_0.gguf
+
+  caddy:
+    image: caddy
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
+EOF
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">KONFIGURACJA CADDY</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-2|9-21"><script type="text/template">
+api_key=`openssl rand -hex 32`
+echo "API KEY: $api_key"
+
+cat <<EOF > Caddyfile
+{
+    admin off
+}
+
+:80 {
+    @auth {
+        header Authorization "Bearer $api_key"
+    }
+
+    handle @auth {
+        reverse_proxy bielik:80
+    }
+
+    handle {
+        respond "Unauthorized" 401
+    }
+}
+EOF
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">URUCHAMIAMY DOCKER COMPOSE</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-2|4-5|7-8"><script type="text/template">
+# URUCHAMIAMY USŁUGI
+docker-compose -f bielik.yml up -d
+
+# JEŚLI CHCEMY ZOBACZYĆ LOGI
+docker-compose -f bielik.yml logs -f
+
+# JEŚLI CHCEMY ZATRZYMAĆ USŁUGI
+docker-compose -f bielik.yml down
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">TESTUJEMY API Z API KEY - NA LOKALNEJ MASZYNIE</span>
+				<pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="|4"><script type="text/template">
+from openai import AsyncOpenAI
+
+client = AsyncOpenAI(
+	api_key="*****",
+	base_url="http://localhost:8080/v1"
+)
+
+response = await client.chat.completions.create(
+    model="speakleash/Bielik-11B-v2.3-Instruct-GGUF",
+    messages=[
+        {"role": "system", "content": "Jesteś bardzo pomocnym asystentem"},
+        {"role": "user", "content": "Witaj świecie"}
+    ],
+    temperature=0.5
+)
+
+print(response.choices[0].message.content)
+					</script></code></pre>
+			</section>
+
+		
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">ZARZĄDZAMY VM ZA POMOCĄ AZ CLI</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-2|4-5|7-9"><script type="text/template">
+# DEALOKUJEMY VM (TRACIMY STARE IP)
+$HOME/bin/az vm deallocate --resource-group BIELIK_VM --name bielikVM1
+
+# URUCHAMIAMY VM (ZOSTAJE PRZYDZIELONE NOWE IP)
+$HOME/bin/az vm start --resource-group BIELIK_VM --name bielikVM1
+
+# SPRAWDZAMY NOWE IP I TWORZYMY TUNEL SSH DLA NOWEGO IP
+PUBLIC_IP=$($HOME/bin/az vm list-ip-addresses --name bielikVM1 --resource-group BIELIK_VM --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
+ssh bielik@$PUBLIC_IP -i ./ssh/id_rsa -L 8080:localhost:8080 -TN /bin/false
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">USUWAMY INFRASTRUKTURĘ ZA POMOCA TERRAFORM</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1"><script type="text/template">
+../bin/terraform destroy
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">KONIEC</br></span>
+
+				<span class="luckiest" style="font-size: 30px;">
+				 <a href="https://www.youtube.com/qooba">🎬 https://www.youtube.com/qooba</a><br/>
+				 <a href="https://discord.com/invite/TfuTKcUC?utm_source=Discord%20Widget&utm_medium=Connect">💬 SPEAKLEASH DISCORD</a></span>
+			</section>
+
+
+
+
+
+		</div>
+
+	</div>
+
+	<script src="/revealjs/dist/reveal.js"></script>
+	<script src="/revealjs/plugin/zoom/zoom.js"></script>
+	<script src="/revealjs/plugin/notes/notes.js"></script>
+	<script src="/revealjs/plugin/search/search.js"></script>
+	<script src="/revealjs/plugin/markdown/markdown.js"></script>
+	<script src="/revealjs/plugin/highlight/highlight.js"></script>
+	<script>
+
+		// Also available as an ES module, see:
+		// https://revealjs.com/initialization/
+		Reveal.initialize({
+			controls: true,
+			progress: true,
+			center: true,
+			hash: true,
+
+			// Learn about plugins: https://revealjs.com/plugins/
+			plugins: [RevealZoom, RevealNotes, RevealSearch, RevealMarkdown, RevealHighlight],
+			dependencies: [{ src: '/revealjs/plugin/gamepad/gamepad.js', async: true }]
+		});
+
+	</script>
+
+</body>
+
+</html>

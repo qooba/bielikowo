@@ -1,0 +1,9 @@
+revealjs/presentation
+icons
+.terraform
+*/bin/
+.ipynb_checkpoints
+*/ssh/
+.terraform.lock.hcl
+terraform.tfstate.backup
+terraform.tfstate
