@@ -66,8 +66,7 @@
 
 						# INSTALUJEMY TERRAFORM
 						wget https://releases.hashicorp.com/terraform/1.10.5/terraform_1.10.5_linux_386.zip
-						mkdir -p ./bin
-						unzip terraform_1.10.5_linux_386.zip -d ./bin
+						sudo unzip terraform_1.10.5_linux_386.zip -d /usr/local/bin/
 
 						# INSTALUJEMY AZURE CLI
 						curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
@@ -200,11 +199,11 @@ resource "azurerm_linux_virtual_machine" "vm1" {
 				<span class="luckiest" style="font-size: 50px;">Tworzymy infrastrukturę</span>
 				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-2|4-6"><script type="text/template">
 #LOGOWANIE DO AZURE
-$HOME/bin/az login
+az login
 
 # URUCHAMIAMY KOD TERRAFORM
-../bin/terraform init
-../bin/terraform apply
+terraform init
+terraform apply
 					</script></code></pre>
 			</section>
 
