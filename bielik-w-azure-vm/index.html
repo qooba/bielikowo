@@ -59,7 +59,7 @@
 
 			<section data-auto-animate data-transition="none">
 				<span class="luckiest" style="font-size: 50px;">Przygotowanie środowiska</span>
-				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-3|5-8|10-11|13-15"><script type="text/template">
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-3|5-8|10-11|13-16"><script type="text/template">
 						# KLONUJEMY BIELIKOWO
 						git clone https://github.com/qooba/bielikowo
 						cd bielikowo/bielik-w-azure-vm
@@ -73,6 +73,7 @@
 
 						# GENERUJEMY KLUCZ SSH
 						cd ./terraform
+						mkdir ssh
 						ssh-keygen -t rsa -b 4096 -C "your_email@example.com" -f ./ssh/id_rsa
 					</script></code></pre>
 			</section>
@@ -244,7 +245,7 @@ newgrp docker
 
 # DOCKER COMPOSE
 sudo curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker
+sudo chmod +x /usr/local/bin/docker-compose
 
 					</script></code></pre>
 			</section>
@@ -310,7 +311,7 @@ ssh bielik@$PUBLIC_IP -i ./ssh/id_rsa -L 8080:localhost:8080 -TN /bin/false
 
 			<section data-auto-animate data-transition="none">
 				<span class="luckiest" style="font-size: 50px;">TESTUJEMY API - NA LOKALNEJ MASZYNIE</span>
-				<pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-5|7-16"><script type="text/template">
+				<pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-5|7-17"><script type="text/template">
 from openai import AsyncOpenAI
 
 client = AsyncOpenAI(
@@ -318,6 +319,7 @@ client = AsyncOpenAI(
 )
 
 response = await client.chat.completions.create(
+	api_key="your-api-key",
     model="speakleash/Bielik-11B-v2.3-Instruct-GGUF",
     messages=[
         {"role": "system", "content": "Jesteś bardzo pomocnym asystentem"},
@@ -341,8 +343,6 @@ services:
     image: ghcr.io/ericlbuehler/mistral.rs:cuda-75-sha-f1a56f6
     container_name: bielik
     restart: unless-stopped
-    ports:
-      - "8080:80"
     deploy:
       resources:
         reservations:
@@ -357,7 +357,7 @@ services:
     container_name: caddy
     restart: unless-stopped
     ports:
-      - "8000:80"
+      - "8080:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
