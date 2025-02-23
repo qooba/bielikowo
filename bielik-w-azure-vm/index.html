@@ -311,15 +311,15 @@ ssh bielik@$PUBLIC_IP -i ./ssh/id_rsa -L 8080:localhost:8080 -TN /bin/false
 
 			<section data-auto-animate data-transition="none">
 				<span class="luckiest" style="font-size: 50px;">TESTUJEMY API - NA LOKALNEJ MASZYNIE</span>
-				<pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-5|7-17"><script type="text/template">
+				<pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-6|8-17"><script type="text/template">
 from openai import AsyncOpenAI
 
 client = AsyncOpenAI(
+	api_key="your-api-key",
     base_url="http://localhost:8080/v1"
 )
 
 response = await client.chat.completions.create(
-	api_key="your-api-key",
     model="speakleash/Bielik-11B-v2.3-Instruct-GGUF",
     messages=[
         {"role": "system", "content": "Jesteś bardzo pomocnym asystentem"},
