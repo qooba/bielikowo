@@ -210,7 +210,7 @@ terraform apply
 			<section data-auto-animate data-transition="none">
 				<span class="luckiest" style="font-size: 50px;">Logujemy się na VM przez SSH</span>
 				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1|2"><script type="text/template">
-PUBLIC_IP=$($HOME/bin/az vm list-ip-addresses --name bielikVM1 --resource-group BIELIK_VM --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
+PUBLIC_IP=$(az vm list-ip-addresses --name bielikVM1 --resource-group BIELIK_VM --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
 ssh -i ./ssh/id_rsa -Y bielik@$PUBLIC_IP
 					</script></code></pre>
 			</section>
@@ -303,7 +303,7 @@ docker run -it --rm --name bielik -p 8080:80 --gpus all \
 			<section data-auto-animate data-transition="none">
 				<span class="luckiest" style="font-size: 50px;">TUNEL SSH DO LOKALNEJ MASZYNY</span>
 				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-2"><script type="text/template">
-PUBLIC_IP=$($HOME/bin/az vm list-ip-addresses --name bielikVM1 --resource-group BIELIK_VM --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
+PUBLIC_IP=$(az vm list-ip-addresses --name bielikVM1 --resource-group BIELIK_VM --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
 ssh bielik@$PUBLIC_IP -i ./ssh/id_rsa -L 8080:localhost:8080 -TN /bin/false
 					</script></code></pre>
 			</section>
@@ -441,13 +441,13 @@ print(response.choices[0].message.content)
 				<span class="luckiest" style="font-size: 50px;">ZARZĄDZAMY VM ZA POMOCĄ AZ CLI</span>
 				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-2|4-5|7-9"><script type="text/template">
 # DEALOKUJEMY VM (TRACIMY STARE IP)
-$HOME/bin/az vm deallocate --resource-group BIELIK_VM --name bielikVM1
+az vm deallocate --resource-group BIELIK_VM --name bielikVM1
 
 # URUCHAMIAMY VM (ZOSTAJE PRZYDZIELONE NOWE IP)
-$HOME/bin/az vm start --resource-group BIELIK_VM --name bielikVM1
+az vm start --resource-group BIELIK_VM --name bielikVM1
 
 # SPRAWDZAMY NOWE IP I TWORZYMY TUNEL SSH DLA NOWEGO IP
-PUBLIC_IP=$($HOME/bin/az vm list-ip-addresses --name bielikVM1 --resource-group BIELIK_VM --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
+PUBLIC_IP=$(az vm list-ip-addresses --name bielikVM1 --resource-group BIELIK_VM --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
 ssh bielik@$PUBLIC_IP -i ./ssh/id_rsa -L 8080:localhost:8080 -TN /bin/false
 					</script></code></pre>
 			</section>
@@ -455,7 +455,7 @@ ssh bielik@$PUBLIC_IP -i ./ssh/id_rsa -L 8080:localhost:8080 -TN /bin/false
 			<section data-auto-animate data-transition="none">
 				<span class="luckiest" style="font-size: 50px;">USUWAMY INFRASTRUKTURĘ ZA POMOCA TERRAFORM</span>
 				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1"><script type="text/template">
-../bin/terraform destroy
+terraform destroy
 					</script></code></pre>
 			</section>
 
