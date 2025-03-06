@@ -4,7 +4,7 @@
 <head>
 	<meta charset="utf-8">
 
-	<title>BIELIKOWO - BIELIK W AZURE VM</title>
+	<title>BIELIKOWO - BIELIK W AWS VM</title>
 
 	<meta name="apple-mobile-web-app-capable" content="yes">
 	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -48,7 +48,7 @@
 
 			<section>
 				<center>
-					<img src="images/azure.png" width="100%" />
+					<img src="images/aws.png" width="100%" />
 					<br />
 					<span class="luckiest" style="font-size: 30px;">zakladamy konto i subskrypcję w Azure</span>
 				</center>
@@ -59,7 +59,7 @@
 
 			<section data-auto-animate data-transition="none">
 				<span class="luckiest" style="font-size: 50px;">Przygotowanie środowiska</span>
-				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-3|5-8|10-11|13-16"><script type="text/template">
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-3|5-8|9-12|13-17"><script type="text/template">
 						# KLONUJEMY BIELIKOWO
 						git clone https://github.com/qooba/bielikowo
 						cd bielikowo/bielik-w-azure-vm
@@ -68,8 +68,10 @@
 						wget https://releases.hashicorp.com/terraform/1.10.5/terraform_1.10.5_linux_386.zip
 						sudo unzip terraform_1.10.5_linux_386.zip -d /usr/local/bin/
 
-						# INSTALUJEMY AZURE CLI
-						curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+						# INSTALUJEMY AWS CLI
+						curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+						unzip awscliv2.zip
+						sudo ./aws/install
 
 						# GENERUJEMY KLUCZ SSH
 						cd ./terraform
@@ -80,118 +82,66 @@
 
 			<section data-auto-animate data-transition="none">
 				<span class="luckiest" style="font-size: 50px;">Terraform</span>
-				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-12|14-17|19-31|39-51|79-107"><script type="text/template">
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-12|14-17|19-36|38-59"><script type="text/template">
 terraform {
   required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 3.0"
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
     }
   }
 }
 
-provider "azurerm" {
-  features {}
+provider "aws" {
+  region = var.region
 }
 
-resource "azurerm_resource_group" "rg_vm" {
-  name     = "${var.resource_group_name}_VM"
-  location = var.location
+resource "aws_key_pair" "bielik_key" {
+  key_name   = var.key_name
+  public_key = file("./ssh/id_rsa.pub")
 }
 
-resource "azurerm_virtual_network" "vnet" {
-  name                = "bielikVNet"
-  address_space       = ["10.0.0.0/16"]
-  location            = azurerm_resource_group.rg_vm.location
-  resource_group_name = azurerm_resource_group.rg_vm.name
-}
+resource "aws_security_group" "allow_ssh" {
+  name        = "allow_ssh"
+  description = "Allow SSH inbound traffic"
 
-resource "azurerm_subnet" "subnet" {
-  name                 = "bielikSubnet"
-  resource_group_name  = azurerm_resource_group.rg_vm.name
-  virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes     = ["10.0.1.0/24"]
-}
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-resource "azurerm_network_security_group" "nsg" {
-  name                = "bielikNSG"
-  location            = azurerm_resource_group.rg_vm.location
-  resource_group_name = azurerm_resource_group.rg_vm.name
-}
-
-resource "azurerm_network_security_rule" "nsr" {
-  name                        = "SSH"
-  priority                    = 1001
-  direction                   = "Inbound"
-  access                      = "Allow"
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = "22"
-  source_address_prefix       = "*"
-  destination_address_prefix  = "*"
-  resource_group_name         = azurerm_resource_group.rg_vm.name
-  network_security_group_name = azurerm_network_security_group.nsg.name
-}
-
-# Network Interface and Public IP for VM1
-resource "azurerm_public_ip" "public_ip1" {
-  name                = "bielikPublicIP1"
-  location            = azurerm_resource_group.rg_vm.location
-  resource_group_name = azurerm_resource_group.rg_vm.name
-  allocation_method   = "Dynamic"
-}
-
-resource "azurerm_network_interface" "nic1" {
-  name                = "bielikNIC1"
-  location            = azurerm_resource_group.rg_vm.location
-  resource_group_name = azurerm_resource_group.rg_vm.name
-
-  ip_configuration {
-    name                          = "myNICConfig1"
-    subnet_id                     = azurerm_subnet.subnet.id
-    private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.public_ip1.id
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-resource "azurerm_network_interface_security_group_association" "nsg_assoc" {
-  network_interface_id      = azurerm_network_interface.nic1.id
-  network_security_group_id = azurerm_network_security_group.nsg.id
+resource "aws_spot_instance_request" "bielik_spot" {
+  ami                  = var.ami_id
+  instance_type        = var.instance_type
+  key_name             = var.key_name
+
+  security_groups = [ aws_security_group.allow_ssh.name ]
+  associate_public_ip_address = true
+
+  spot_price = var.spot_price
+  wait_for_fulfillment = true
+
+  root_block_device {
+    volume_size = var.ebs_volume_size
+    volume_type = "gp3"
+  }
+
+  tags = {
+    Name = "bielik-gpu-spot"
+  }
+
+  depends_on = [ aws_key_pair.bielik_key ]
 }
-
-resource "azurerm_linux_virtual_machine" "vm1" {
-  name                = "bielikVM1"
-  resource_group_name = azurerm_resource_group.rg_vm.name
-  location            = azurerm_resource_group.rg_vm.location
-  size                = "Standard_NC4as_T4_v3"
-  admin_username      = "bielik"
-  priority = "Spot"
-  eviction_policy = "Deallocate"
-  network_interface_ids = [
-    azurerm_network_interface.nic1.id,
-  ]
-
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "StandardSSD_LRS"
-  }
-
-  source_image_reference {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts"
-    version   = "latest"
-  }
-
-  computer_name                   = "bielik-gpu-spot-1"
-  admin_ssh_key {
-    username   = "bielik"
-    public_key = file("./ssh/id_rsa.pub")
-  }
-
-}
-
-
 					</script></code></pre>
 			</section>
 
@@ -200,7 +150,7 @@ resource "azurerm_linux_virtual_machine" "vm1" {
 				<span class="luckiest" style="font-size: 50px;">Tworzymy infrastrukturę</span>
 				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-2|4-6"><script type="text/template">
 #LOGOWANIE DO AZURE
-az login
+aws configure
 
 # URUCHAMIAMY KOD TERRAFORM
 terraform init
@@ -211,8 +161,8 @@ terraform apply
 			<section data-auto-animate data-transition="none">
 				<span class="luckiest" style="font-size: 50px;">Logujemy się na VM przez SSH</span>
 				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1|2"><script type="text/template">
-PUBLIC_IP=$(az vm list-ip-addresses --name bielikVM1 --resource-group BIELIK_VM --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
-ssh -i ./ssh/id_rsa -Y bielik@$PUBLIC_IP
+PUBLIC_IP=$(aws ec2 describe-instances --query "Reservations[*].Instances[*].PublicIpAddress" --output text --region eu-north-1)
+ssh -i ./ssh/id_rsa -Y ubuntu@$PUBLIC_IP
 					</script></code></pre>
 			</section>
 
@@ -319,8 +269,8 @@ docker run -it --rm --name pllum -p 8080:80 --gpus all \
 			<section data-auto-animate data-transition="none">
 				<span class="luckiest" style="font-size: 50px;">TUNEL SSH DO LOKALNEJ MASZYNY</span>
 				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-2"><script type="text/template">
-PUBLIC_IP=$(az vm list-ip-addresses --name bielikVM1 --resource-group BIELIK_VM --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
-ssh bielik@$PUBLIC_IP -i ./ssh/id_rsa -L 8080:localhost:8080 -TN /bin/false
+PUBLIC_IP=$(aws ec2 describe-instances --query "Reservations[*].Instances[*].PublicIpAddress" --output text --region eu-north-1)
+ssh ubuntu@$PUBLIC_IP -i ./ssh/id_rsa -L 8080:localhost:8080 -TN /bin/false
 					</script></code></pre>
 			</section>
 
@@ -454,16 +404,22 @@ print(response.choices[0].message.content)
 
 			<section data-auto-animate data-transition="none">
 				<span class="luckiest" style="font-size: 50px;">ZARZĄDZAMY VM ZA POMOCĄ AZ CLI</span>
-				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-2|4-5|7-9"><script type="text/template">
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-5|7-8|10-11|13-15"><script type="text/template">
+INSTANCE_ID=$(aws ec2 describe-instances \
+  --filters "Name=tag:Name,Values=bielik-gpu-spot" \
+  --query "Reservations[*].Instances[*].InstanceId" \
+  --output text \
+  --region eu-north-1)
+
 # DEALOKUJEMY VM (TRACIMY STARE IP)
-az vm deallocate --resource-group BIELIK_VM --name bielikVM1
+aws ec2 stop-instances --instance-ids $INSTANCE_ID --region eu-north-1
 
 # URUCHAMIAMY VM (ZOSTAJE PRZYDZIELONE NOWE IP)
-az vm start --resource-group BIELIK_VM --name bielikVM1
+aws ec2 start-instances --instance-ids $INSTANCE_ID --region eu-north-1
 
 # SPRAWDZAMY NOWE IP I TWORZYMY TUNEL SSH DLA NOWEGO IP
-PUBLIC_IP=$(az vm list-ip-addresses --name bielikVM1 --resource-group BIELIK_VM --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
-ssh bielik@$PUBLIC_IP -i ./ssh/id_rsa -L 8080:localhost:8080 -TN /bin/false
+PUBLIC_IP=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=bielik-gpu-spot" --query "Reservations[*].Instances[*].PublicIpAddress" --output text --region eu-north-1)
+ssh ubuntu@$PUBLIC_IP -i ./ssh/id_rsa -L 8080:localhost:8080 -TN /bin/false
 					</script></code></pre>
 			</section>
 
