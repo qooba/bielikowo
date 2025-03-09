@@ -156,7 +156,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "ray_workers" {
   location            = azurerm_resource_group.ray_cluster.location
   resource_group_name = azurerm_resource_group.ray_cluster.name
   sku                 = "Standard_NC4as_T4_v3"
-  instances           = 1
+  instances           = 2
   priority            = "Spot"
   eviction_policy     = "Deallocate"
 
