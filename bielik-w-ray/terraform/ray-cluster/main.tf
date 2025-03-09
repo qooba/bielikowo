@@ -70,9 +70,28 @@ resource "azurerm_linux_virtual_machine" "ray_head" {
     #!/bin/bash
     apt update && apt install -y python3-pip
     pip3 install ray[default] polars azure-storage-blob deltalake jupyterlab
-    
-    ray start --head --port=6379 --dashboard-port=8265
 
+    echo "Creating Ray Head Node systemd service..."
+    cat <<EOF | tee /etc/systemd/system/ray-head.service
+    [Unit]
+    Description=Ray Head Node
+    After=network.target
+
+    [Service]
+    User=bielik
+    ExecStart=/usr/local/bin/ray start --block --head --port=6379 --dashboard-port=8265
+    Restart=always
+    RestartSec=10
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+
+    echo "Enabling and starting Ray Head Node service..."
+    systemctl daemon-reload
+    systemctl enable ray-head
+    systemctl start ray-head
+    
     JUPYTER_PASS_HASH=$(python3 -c "from jupyter_server.auth import passwd; print(passwd('${var.jupyter_password}'))")
     mkdir -p /home/bielik/.jupyter
 
@@ -132,7 +151,6 @@ resource "azurerm_linux_virtual_machine" "ray_head" {
 
 }
 
-
 resource "azurerm_linux_virtual_machine_scale_set" "ray_workers" {
   name                = "ray-worker-vmss"
   location            = azurerm_resource_group.ray_cluster.location
@@ -170,6 +188,9 @@ resource "azurerm_linux_virtual_machine_scale_set" "ray_workers" {
     apt update && apt install -y python3-pip
     pip3 install ray[default] polars
 
+    wget https://github.com/qooba/bielikowo/raw/refs/heads/main/packages/mistralrs-0.4.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+    pip3 install mistralrs-0.4.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+
     # Get Head Node Private IP
     HEAD_IP="${azurerm_network_interface.ray_head_nic.private_ip_address}"
 
@@ -179,8 +200,28 @@ resource "azurerm_linux_virtual_machine_scale_set" "ray_workers" {
         sleep 5
     done
 
-    echo "Joining Ray cluster at $HEAD_IP"
-    ray start --address=$HEAD_IP:6379
+    echo "Creating Ray Worker systemd service..."
+    cat <<EOF | tee /etc/systemd/system/ray-worker.service
+    [Unit]
+    Description=Ray Worker Node
+    After=network.target
+
+    [Service]
+    User=bielik
+    Environment=HEAD_IP=${azurerm_network_interface.ray_head_nic.private_ip_address}
+    ExecStart=/usr/local/bin/ray start --block --address=${azurerm_network_interface.ray_head_nic.private_ip_address}:6379
+    Restart=always
+    RestartSec=10
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+
+    echo "Enabling and starting Ray Worker service..."
+    systemctl daemon-reload
+    systemctl enable ray-worker
+    systemctl start ray-worker
+
   EOT
   )
 

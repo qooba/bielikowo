@@ -120,9 +120,102 @@ terraform apply
 HEAD_IP=$(az vm list-ip-addresses --name ray-head-vm --resource-group BIELIK_RAY --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
 ssh -i ./ssh/id_rsa -Y bielik@$HEAD_IP
 
-ssh bielik@$HEAD_IP -i ./ssh/id_rsa -L 8265:localhost:9265 -TN /bin/false
+ssh bielik@$HEAD_IP -i ./ssh/id_rsa -L 8265:localhost:8265 -TN /bin/false
 
 
 chown -R $USER /tmp/ray/
 
+```
+
+RAY VERSION 2.43.0
+
+## TEST RAY
+```python
+import ray
+import subprocess
+
+ray.init(address="auto", ignore_reinit_error=True)  # Connect to Ray cluster
+
+@ray.remote(num_gpus=1)
+def get_gpu_info():
+    """Returns GPU details from a Worker Node using `nvidia-smi`."""
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        gpu_info = result.stdout.strip()
+        return {
+            "worker": ray.get_runtime_context().node_id,
+            "gpu_info": gpu_info
+        }
+    except Exception as e:
+        return {"worker": ray.get_runtime_context().node_id, "error": str(e)}
+
+# Launch tasks on available GPU workers
+gpu_info_futures = [get_gpu_info.remote() for _ in range(2)]  # Adjust for max workers
+
+# Retrieve and print GPU info from workers
+gpu_info_results = ray.get(gpu_info_futures)
+
+print("GPU Info from Workers:")
+for info in gpu_info_results:
+    print(info)
+```
+
+
+```python
+import ray
+
+ray.init(address="auto", ignore_reinit_error=True)  # Connect to Ray cluster
+
+# Sample texts
+texts = [
+    "Witaj świecie",
+    "Opowiedz o sobie",
+]
+
+BATCH_SIZE = 2
+
+# Split texts into batches
+batches = [texts[i:i + BATCH_SIZE] for i in range(0, len(texts), BATCH_SIZE)]
+
+@ray.remote(num_gpus=1)
+def process_batch(batch):
+    import random
+    from mistralrs import ChatCompletionRequest, Runner, Which
+
+    runner = Runner(which=Which.GGUF(quantized_model_id="speakleash/Bielik-11B-v2.3-Instruct-GGUF", quantized_filename="Bielik-11B-v2.3-Instruct.Q8_0.gguf"))
+
+    res = [runner.send_chat_completion_request(
+            ChatCompletionRequest(
+                model="mistral",
+                messages=[
+                    #{"role": "system", "content": persona},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=256,
+                presence_penalty=1.0,
+                top_p=random.uniform(0.1, 0.5),
+                temperature=random.uniform(0.1, 0.5),
+            )
+        ).choices[0].message.content for prompt in batch]
+    
+    return res
+
+# Send batches to workers
+futures = [process_batch.remote(batch) for batch in batches]
+
+# Retrieve processed results
+processed_batches = ray.get(futures, timeout=300)
+
+# Merge all results
+processed_texts = [text for batch in processed_batches for text in batch]
+
+# Print results
+print("Processed Texts:")
+for text in processed_texts:
+    print(text)
 ```
