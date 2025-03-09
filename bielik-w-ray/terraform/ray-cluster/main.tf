@@ -56,7 +56,6 @@ resource "azurerm_network_interface" "ray_head_nic" {
   }
 }
 
-/*
 resource "azurerm_linux_virtual_machine" "ray_head" {
   name                  = "ray-head-vm"
   location              = azurerm_resource_group.ray_cluster.location
@@ -187,4 +186,3 @@ resource "azurerm_linux_virtual_machine_scale_set" "ray_workers" {
 
   depends_on = [ azurerm_linux_virtual_machine.ray_head ]
 }
-*/
