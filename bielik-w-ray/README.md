@@ -43,16 +43,21 @@ maturin build --release --features cuda  --compatibility manylinux2014 --skip-au
 
 ## INSTALL 
 
-wget 
+wget https://github.com/qooba/bielikowo/raw/refs/heads/main/packages/mistralrs-0.4.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+pip3 install mistralrs-0.4.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 
-## TEST
+rm cuda-repo-ubuntu2204-12-2-local_12.2.0-535.54.03-1_amd64.deb
+rm mistralrs-0.4.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 
-```python
+## TEST BIELIK
+
+```bash
+cat <<EOF > bielik_test.py
 import random
 from mistralrs import ChatCompletionRequest, Runner, Which
 
 
-class MistralRSEngineRunner:
+class BielikRunner:
 
     def __init__(self, quantized_model_id: str, quantized_filename: str):
         self.runner = Runner(
@@ -76,10 +81,46 @@ class MistralRSEngineRunner:
         
         return res.choices[0].message.content
 
-runner = MistralRSEngineRunner("speakleash/Bielik-11B-v2.3-Instruct-GGUF", "Bielik-11B-v2.3-Instruct.Q8_0.gguf")
+runner = BielikRunner("speakleash/Bielik-11B-v2.3-Instruct-GGUF", "Bielik-11B-v2.3-Instruct.Q8_0.gguf")
 
 result = runner.chat_completion("Witaj świecie")
 print(result)
+EOF
+```
+
+```bash
+cat <<EOF > pllum_test.py
+import random
+from mistralrs import ChatCompletionRequest, Runner, Which
+
+
+class PLLuMRunner:
+
+    def __init__(self, model_id: str):
+        self.runner = Runner(which=Which.Plain(model_id=model_id))
+
+    def chat_completion(self, prompt: str) -> str:
+        res = self.runner.send_chat_completion_request(
+            ChatCompletionRequest(
+                model="mistral",
+                messages=[
+                    #{"role": "system", "content": persona},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=256,
+                presence_penalty=1.0,
+                top_p=random.uniform(0.1, 0.5),
+                temperature=random.uniform(0.1, 0.5),
+            )
+        )
+        
+        return res.choices[0].message.content
+
+runner = PLLuMRunner("CYFRAGOVPL/Llama-PLLuM-8B-chat")
+
+result = runner.chat_completion("Witaj świecie")
+print(result)
+EOF
 ```
 
 # Prepare image
@@ -89,8 +130,8 @@ print(result)
 az vm deallocate --resource-group BIELIK_VM --name bielikVM1
 
 ---
+cd ../../bielik-w-ray/terraform/vm-image/
 
-cd vm-image
 
 MANAGED_DISK_ID=$(az vm show --name bielikVM1 --resource-group BIELIK_VM --query "storageProfile.osDisk.managedDisk.id" --output tsv)
 
@@ -109,8 +150,17 @@ terraform apply --var managed_image_id=$MANAGED_IMAGE_ID
 az sig image-version list --resource-group BIELIK_GALLERY_PY --gallery-name bielikGalleryPy --gallery-image-definition bielik-vm-image-py
 
 ---
+cd ../vm-image
 
-cd ../ray-cluster
+terraform destroy --var managed_disk_id=$MANAGED_DISK_ID
+
+cd ../../../bielik-w-azure-vm/terraform/
+az vm start --resource-group BIELIK_VM --name bielikVM1
+terraform destroy
+
+---
+
+cd ../../bielik-w-ray/terraform/ray-cluster/
 mkdir ssh
 ssh-keygen -t rsa -b 4096 -C "your_email@example.com" -f ./ssh/id_rsa
 
@@ -121,6 +171,10 @@ HEAD_IP=$(az vm list-ip-addresses --name ray-head-vm --resource-group BIELIK_RAY
 ssh -i ./ssh/id_rsa -Y bielik@$HEAD_IP
 
 ssh bielik@$HEAD_IP -i ./ssh/id_rsa -L 8265:localhost:8265 -TN /bin/false
+
+ssh bielik@$HEAD_IP -i ./ssh/id_rsa -L 8888:localhost:8888 -TN /bin/false
+
+terraform destroy
 
 
 chown -R $USER /tmp/ray/
@@ -174,7 +228,9 @@ ray.init(address="auto", ignore_reinit_error=True)  # Connect to Ray cluster
 # Sample texts
 texts = [
     "Witaj świecie",
+    "Napisz wiersz",
     "Opowiedz o sobie",
+    "Napisz fraszkę"
 ]
 
 BATCH_SIZE = 2
@@ -209,7 +265,63 @@ def process_batch(batch):
 futures = [process_batch.remote(batch) for batch in batches]
 
 # Retrieve processed results
-processed_batches = ray.get(futures, timeout=300)
+processed_batches = ray.get(futures, timeout=1000)
+
+# Merge all results
+processed_texts = [text for batch in processed_batches for text in batch]
+
+# Print results
+print("Processed Texts:")
+for text in processed_texts:
+    print(text)
+```
+
+```python
+import ray
+
+ray.init(address="auto", ignore_reinit_error=True)  # Connect to Ray cluster
+
+# Sample texts
+texts = [
+    "Witaj świecie",
+    "Napisz wiersz",
+    "Opowiedz o sobie",
+    "Napisz fraszkę"
+]
+
+BATCH_SIZE = 2
+
+# Split texts into batches
+batches = [texts[i:i + BATCH_SIZE] for i in range(0, len(texts), BATCH_SIZE)]
+
+@ray.remote(num_gpus=1)
+def process_batch(batch):
+    import random
+    from mistralrs import ChatCompletionRequest, Runner, Which
+
+    runner = Runner(which=Which.Plain(model_id="CYFRAGOVPL/Llama-PLLuM-8B-chat"))
+
+    res = [runner.send_chat_completion_request(
+            ChatCompletionRequest(
+                model="mistral",
+                messages=[
+                    #{"role": "system", "content": persona},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=256,
+                presence_penalty=1.0,
+                top_p=random.uniform(0.1, 0.5),
+                temperature=random.uniform(0.1, 0.5),
+            )
+        ).choices[0].message.content for prompt in batch]
+    
+    return res
+
+# Send batches to workers
+futures = [process_batch.remote(batch) for batch in batches]
+
+# Retrieve processed results
+processed_batches = ray.get(futures, timeout=1000)
 
 # Merge all results
 processed_texts = [text for batch in processed_batches for text in batch]
