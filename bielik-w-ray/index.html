@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+
+	<title>BIELIKOWO - BIELIK W RAY</title>
+
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+	<link rel="stylesheet" href="/revealjs/dist/reset.css">
+	<link rel="stylesheet" href="/revealjs/dist/reveal.css">
+	<!-- <link rel="stylesheet" href="dist/theme/black.css" id="theme"> -->
+	<link rel="stylesheet" href="/revealjs/dist/theme/white.css" id="theme">
+
+	<!-- <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"> -->
+	<link href="https://fonts.googleapis.com/css2?family=Fontdiner+Swanky&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap" rel="stylesheet">
+	<!-- Theme used for syntax highlighting of code -->
+	<link rel="stylesheet" href="/revealjs/plugin/highlight/styles/stackoverflow-light.css">
+	<style>
+		.swanky {
+			font-family: 'Fontdiner Swanky' !important;
+		}
+
+		.luckiest {
+			font-family: 'Luckiest Guy' !important;
+		}
+
+		.code-wrapper {
+			width: 120% !important;
+			margin-left: -10% !important;
+		}
+	</style>
+</head>
+
+<body>
+
+	<div class="reveal">
+
+		<!-- Any section element inside of this container is displayed as a slide -->
+		<div class="slides">
+
+			<section data-background="images/title2.png" data-background-size="70%"></section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">Przygotowanie środowiska</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-3|5-8|10-11|13-16"><script type="text/template">
+						# KLONUJEMY BIELIKOWO
+						git clone https://github.com/qooba/bielikowo
+						cd bielikowo/bielik-w-azure-vm
+
+						# INSTALUJEMY TERRAFORM
+						wget https://releases.hashicorp.com/terraform/1.10.5/terraform_1.10.5_linux_386.zip
+						sudo unzip terraform_1.10.5_linux_386.zip -d /usr/local/bin/
+
+						# INSTALUJEMY AZURE CLI
+						curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+						# GENERUJEMY KLUCZ SSH
+						cd ./terraform
+						mkdir ssh
+						ssh-keygen -t rsa -b 4096 -C "your_email@example.com" -f ./ssh/id_rsa
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">Terraform</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="|14"><script type="text/template">
+resource "azurerm_linux_virtual_machine" "vm1" {
+  name                = "bielikVM1"
+  resource_group_name = azurerm_resource_group.rg_vm.name
+  location            = azurerm_resource_group.rg_vm.location
+  size                = "Standard_NC4as_T4_v3"
+  admin_username      = "bielik"
+  network_interface_ids = [
+    azurerm_network_interface.nic1.id,
+  ]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "StandardSSD_LRS"
+    disk_size_gb         = 60
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+
+  computer_name                   = "bielik-gpu-spot-1"
+  admin_ssh_key {
+    username   = "bielik"
+    public_key = file("./ssh/id_rsa.pub")
+  }
+
+  priority = "Spot"
+  eviction_policy = "Deallocate"
+}
+
+					</script></code></pre>
+			</section>
+
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">Tworzymy infrastrukturę</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-2|4-6"><script type="text/template">
+#LOGOWANIE DO AZURE
+az login
+
+# URUCHAMIAMY KOD TERRAFORM
+terraform init
+terraform apply
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">Logujemy się na VM przez SSH</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1|2"><script type="text/template">
+PUBLIC_IP=$(az vm list-ip-addresses --name bielikVM1 --resource-group BIELIK_VM --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
+ssh -i ./ssh/id_rsa -Y bielik@$PUBLIC_IP
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">Przygotowujemy VM - NVIDIA</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-5|7-8"><script type="text/template">
+sudo apt update
+sudo apt upgrade
+sudo add-apt-repository ppa:graphics-drivers/ppa
+sudo apt-get install nvidia-driver-535
+sudo reboot
+
+# PO UROCHOMIENIU PONOWNIE LOGUJEMY SIĘ PRZEZ SSH I SPRAWDZAMY KOMENDĘ
+nvidia-smi
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">Przygotowujemy VM - CUDA</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-9"><script type="text/template">
+# INSTALUJEMY CUDA
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-ubuntu2204.pin
+sudo mv cuda-ubuntu2204.pin /etc/apt/preferences.d/cuda-repository-pin-600
+wget https://developer.download.nvidia.com/compute/cuda/12.2.0/local_installers/cuda-repo-ubuntu2204-12-2-local_12.2.0-535.54.03-1_amd64.deb
+sudo dpkg -i cuda-repo-ubuntu2204-12-2-local_12.2.0-535.54.03-1_amd64.deb
+sudo cp /var/cuda-repo-ubuntu2204-12-2-local/cuda-*-keyring.gpg /usr/share/keyrings/
+sudo apt-get update
+sudo apt-get -y install cuda
+rm cuda-repo-ubuntu2204-12-2-local_12.2.0-535.54.03-1_amd64.deb
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">Przygotowujemy VM - INSTALUJEMY MISTRAL.RS</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-6"><script type="text/template">
+sudo apt install python3-pip git pkg-config libssl-dev
+
+# INSTRUKCJA KOMPILACJI W PLIKU KOMPILACJA_MISTRAL.md
+wget https://github.com/qooba/bielikowo/raw/refs/heads/main/packages/mistralrs-0.4.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+pip3 install mistralrs-0.4.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+rm mistralrs-0.4.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">TESTUJEMY BIELIKA - KWANTYZACJA Q8 </span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-34|36"><script type="text/template">
+cat <<EOF > bielik_test.py
+import random
+from mistralrs import ChatCompletionRequest, Runner, Which
+
+
+class BielikRunner:
+
+    def __init__(self, quantized_model_id: str, quantized_filename: str):
+        self.runner = Runner(
+            which=Which.GGUF(quantized_model_id=quantized_model_id, quantized_filename=quantized_filename )
+        )
+
+    def chat_completion(self, prompt: str) -> str:
+        res = self.runner.send_chat_completion_request(
+            ChatCompletionRequest(
+                model="mistral",
+                messages=[
+                    #{"role": "system", "content": persona},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=256,
+                presence_penalty=1.0,
+                top_p=random.uniform(0.1, 0.5),
+                temperature=random.uniform(0.1, 0.5),
+            )
+        )
+        
+        return res.choices[0].message.content
+
+runner = BielikRunner("speakleash/Bielik-11B-v2.3-Instruct-GGUF", "Bielik-11B-v2.3-Instruct.Q8_0.gguf")
+
+result = runner.chat_completion("Witaj świecie")
+print(result)
+EOF
+
+python3 bielik_test.py
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">TESTUJEMY PLLUM-a - 8B </span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-32|34"><script type="text/template">
+cat <<EOF > pllum_test.py
+import random
+from mistralrs import ChatCompletionRequest, Runner, Which
+
+
+class PLLuMRunner:
+
+    def __init__(self, model_id: str):
+        self.runner = Runner(which=Which.Plain(model_id=model_id))
+
+    def chat_completion(self, prompt: str) -> str:
+        res = self.runner.send_chat_completion_request(
+            ChatCompletionRequest(
+                model="mistral",
+                messages=[
+                    #{"role": "system", "content": persona},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=256,
+                presence_penalty=1.0,
+                top_p=random.uniform(0.1, 0.5),
+                temperature=random.uniform(0.1, 0.5),
+            )
+        )
+        
+        return res.choices[0].message.content
+
+runner = PLLuMRunner("CYFRAGOVPL/Llama-PLLuM-8B-chat")
+
+result = runner.chat_completion("Witaj świecie")
+print(result)
+EOF
+
+python3 pllum_test.py
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">PRZYGOTOWUJEMY OBRAZ VM</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-2|4-8"><script type="text/template">
+# DEALOKUJEMY VM
+az vm deallocate --resource-group BIELIK_VM --name bielikVM1
+
+# TWORZYMY OBRAZ VM ZA POMOCĄ TERRAFORM
+cd ../../bielik-w-ray/terraform/vm-image/
+MANAGED_DISK_ID=$(az vm show --name bielikVM1 --resource-group BIELIK_VM --query "storageProfile.osDisk.managedDisk.id" --output tsv)
+terraform init
+terraform apply --var managed_disk_id=$MANAGED_DISK_ID
+
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">TWORZYMY OBRAZ W AZURE COMPUTE GALLERY</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-5|7-8"><script type="text/template">
+# TWORZYMY OBRAZ W AZURE COMPUTE GALLERY					
+cd ../gallery
+MANAGED_IMAGE_ID=$(az image show --name vm-image --resource-group BIELIK_IMAGE --query "id" --output tsv)
+terraform init
+terraform apply --var managed_image_id=$MANAGED_IMAGE_ID
+
+# WERYFIKUJEMY UTWORZONY OBRAZ
+az sig image-version list --resource-group BIELIK_GALLERY_PY --gallery-name bielikGalleryPy --gallery-image-definition bielik-vm-image-py
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">KASUJEMY NIEPOTRZEBNE ZASOBY</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-3|5-8"><script type="text/template">
+# KASUJEMY OBRAZ VM					
+cd ../vm-image
+terraform destroy --var managed_disk_id=$MANAGED_DISK_ID
+
+# KASUJEMY MASZNĘ WIRTUALNĄ I NIEPOTRZEBNE ZASOBY
+cd ../../../bielik-w-azure-vm/terraform/
+az vm start --resource-group BIELIK_VM --name bielikVM1
+terraform destroy
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">TWORZYMY KLASTER RAY</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-3|4-6"><script type="text/template">
+# PRZECHODZIMY DO KATALOGU Z RAY-CLUSTER					
+cd ../../bielik-w-ray/terraform/ray-cluster/
+
+# GENERUJEMY KLUCZ SSH
+mkdir ssh
+ssh-keygen -t rsa -b 4096 -C "your_email@example.com" -f ./ssh/id_rsa
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">RAY CLUSTER TERRAFORM</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="|59-67|154-161|124-127"><script type="text/template">
+terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.0"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {}
+}
+
+resource "azurerm_resource_group" "ray_cluster" {
+  name     = "${var.resource_group_name}_RAY"
+  location = var.location
+}
+
+data "azurerm_shared_image" "shared_image" {
+  name                = "bielik-vm-image-py"
+  gallery_name        = "bielikGalleryPy"
+  resource_group_name = "${var.resource_group_name}_GALLERY_PY"
+}
+
+resource "azurerm_virtual_network" "ray_vnet" {
+  name                = "ray-vnet"
+  location            = azurerm_resource_group.ray_cluster.location
+  resource_group_name = azurerm_resource_group.ray_cluster.name
+  address_space       = ["10.0.0.0/16"]
+}
+
+resource "azurerm_subnet" "ray_subnet" {
+  name                 = "ray-subnet"
+  resource_group_name  = azurerm_resource_group.ray_cluster.name
+  virtual_network_name = azurerm_virtual_network.ray_vnet.name
+  address_prefixes     = ["10.0.1.0/24"]
+}
+
+resource "azurerm_public_ip" "ray_head_ip" {
+  name                = "ray-head-ip"
+  location            = azurerm_resource_group.ray_cluster.location
+  resource_group_name = azurerm_resource_group.ray_cluster.name
+  allocation_method   = "Static"
+}
+
+resource "azurerm_network_interface" "ray_head_nic" {
+  name                = "ray-head-nic"
+  location            = azurerm_resource_group.ray_cluster.location
+  resource_group_name = azurerm_resource_group.ray_cluster.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.ray_subnet.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.ray_head_ip.id
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "ray_head" {
+  name                  = "ray-head-vm"
+  location              = azurerm_resource_group.ray_cluster.location
+  resource_group_name   = azurerm_resource_group.ray_cluster.name
+  size                  = "Standard_D2s_v5"
+  priority              = "Spot"
+  eviction_policy       = "Deallocate"
+  admin_username        = "bielik"
+  network_interface_ids = [azurerm_network_interface.ray_head_nic.id]
+
+  custom_data = base64encode(<<-EOT
+    #!/bin/bash
+    apt update && apt install -y python3-pip
+    pip3 install ray[default] polars azure-storage-blob deltalake jupyterlab
+
+    echo "Creating Ray Head Node systemd service..."
+    cat <<EOF | tee /etc/systemd/system/ray-head.service
+    [Unit]
+    Description=Ray Head Node
+    After=network.target
+
+    [Service]
+    User=bielik
+    ExecStart=/usr/local/bin/ray start --block --head --port=6379 --dashboard-port=8265
+    Restart=always
+    RestartSec=10
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+
+    echo "Enabling and starting Ray Head Node service..."
+    systemctl daemon-reload
+    systemctl enable ray-head
+    systemctl start ray-head
+    
+    JUPYTER_PASS_HASH=$(python3 -c "from jupyter_server.auth import passwd; print(passwd('${var.jupyter_password}'))")
+    mkdir -p /home/bielik/.jupyter
+
+    echo "Configuring Jupyter..."
+    cat <<EOF > /home/bielik/.jupyter/jupyter_lab_config.py
+    c.ServerApp.ip = '0.0.0.0'
+    c.ServerApp.port = 8888
+    c.ServerApp.password = '$JUPYTER_PASS_HASH'
+    c.ServerApp.open_browser = False
+    c.ServerApp.allow_root = True
+    c.ServerApp.notebook_dir = '/home/bielik'
+    EOF
+
+    echo "Creating systemd service for Jupyter..."
+    cat <<EOF | tee /etc/systemd/system/jupyter.service
+    [Unit]
+    Description=Jupyter Lab
+    After=network.target
+
+    [Service]
+    User=bielik
+    WorkingDirectory=/home/bielik
+    ExecStart=/usr/local/bin/jupyter lab --config=/home/bielik/.jupyter/jupyter_lab_config.py
+    Restart=always
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+
+    echo "Enabling and starting Jupyter service..."
+    systemctl daemon-reload
+    systemctl enable jupyter
+    systemctl start jupyter
+
+    echo "Jupyter Lab setup complete!"
+    chown -R bielik /tmp/ray/
+  EOT
+  )
+
+  admin_ssh_key {
+    username   = "bielik"
+    public_key = file("./ssh/id_rsa.pub")
+  }
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+
+
+}
+
+resource "azurerm_linux_virtual_machine_scale_set" "ray_workers" {
+  name                = "ray-worker-vmss"
+  location            = azurerm_resource_group.ray_cluster.location
+  resource_group_name = azurerm_resource_group.ray_cluster.name
+  sku                 = "Standard_NC4as_T4_v3"
+  instances           = 2
+  priority            = "Spot"
+  eviction_policy     = "Deallocate"
+
+  admin_username = "bielik"
+  admin_ssh_key {
+    username   = "bielik"
+    public_key = file("./ssh/id_rsa.pub")
+  }
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Premium_LRS"
+  }
+
+  network_interface {
+    name    = "ray-worker-nic"
+    primary = true
+
+    ip_configuration {
+      name      = "internal"
+      subnet_id = azurerm_subnet.ray_subnet.id
+    }
+  }
+
+  source_image_id = data.azurerm_shared_image.shared_image.id
+
+  custom_data = base64encode(<<-EOT
+    #!/bin/bash
+    apt update && apt install -y python3-pip
+    pip3 install ray[default] polars
+
+    wget https://github.com/qooba/bielikowo/raw/refs/heads/main/packages/mistralrs-0.4.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+    pip3 install mistralrs-0.4.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+
+    # Get Head Node Private IP
+    HEAD_IP="${azurerm_network_interface.ray_head_nic.private_ip_address}"
+
+    echo "Waiting for Head Node to be ready..."
+    until nc -z $HEAD_IP 6379; do
+        echo "Head Node not ready, retrying in 5 seconds..."
+        sleep 5
+    done
+
+    echo "Creating Ray Worker systemd service..."
+    cat <<EOF | tee /etc/systemd/system/ray-worker.service
+    [Unit]
+    Description=Ray Worker Node
+    After=network.target
+
+    [Service]
+    User=bielik
+    Environment=HEAD_IP=${azurerm_network_interface.ray_head_nic.private_ip_address}
+    ExecStart=/usr/local/bin/ray start --block --address=${azurerm_network_interface.ray_head_nic.private_ip_address}:6379
+    Restart=always
+    RestartSec=10
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+
+    echo "Enabling and starting Ray Worker service..."
+    systemctl daemon-reload
+    systemctl enable ray-worker
+    systemctl start ray-worker
+
+  EOT
+  )
+
+  depends_on = [ azurerm_linux_virtual_machine.ray_head ]
+}
+
+
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">TWORZYMY KLASTER RAY</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-2"><script type="text/template">
+terraform init
+terraform apply					
+					</script></code></pre>
+			</section>
+
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">ŁĄCZYMY SIĘ DO KLASTRA</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-2|4-5|7-8"><script type="text/template">
+# POBIERAMY IP HEAD NODE					
+HEAD_IP=$(az vm list-ip-addresses --name ray-head-vm --resource-group BIELIK_RAY --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
+
+# OTWIERAMY TUNEL SSH DO RAY DASHBOARD
+ssh bielik@$HEAD_IP -i ./ssh/id_rsa -L 8265:localhost:8265 -TN /bin/false
+
+# OTWIERAMY TUNEL SSH DO JUPYTER LAB 
+ssh bielik@$HEAD_IP -i ./ssh/id_rsa -L 8888:localhost:8888 -TN /bin/false
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">URUCHAMIAMY BIELIKA - NA KLASTRZE RAY</span>
+				<pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="|5-16|18-39|41-53"><script type="text/template">
+import ray
+
+ray.init(address="auto", ignore_reinit_error=True)  # Connect to Ray cluster
+
+# Sample texts
+texts = [
+    "Witaj świecie",
+    "Napisz wiersz",
+    "Opowiedz o sobie",
+    "Napisz fraszkę"
+]
+
+BATCH_SIZE = 2
+
+# Split texts into batches
+batches = [texts[i:i + BATCH_SIZE] for i in range(0, len(texts), BATCH_SIZE)]
+
+@ray.remote(num_gpus=1)
+def process_batch(batch):
+    import random
+    from mistralrs import ChatCompletionRequest, Runner, Which
+
+    runner = Runner(which=Which.GGUF(quantized_model_id="speakleash/Bielik-11B-v2.3-Instruct-GGUF", quantized_filename="Bielik-11B-v2.3-Instruct.Q8_0.gguf"))
+
+    res = [runner.send_chat_completion_request(
+            ChatCompletionRequest(
+                model="mistral",
+                messages=[
+                    #{"role": "system", "content": persona},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=256,
+                presence_penalty=1.0,
+                top_p=random.uniform(0.1, 0.5),
+                temperature=random.uniform(0.1, 0.5),
+            )
+        ).choices[0].message.content for prompt in batch]
+    
+    return res
+
+# Send batches to workers
+futures = [process_batch.remote(batch) for batch in batches]
+
+# Retrieve processed results
+processed_batches = ray.get(futures, timeout=1000)
+
+# Merge all results
+processed_texts = [text for batch in processed_batches for text in batch]
+
+# Print results
+print("Processed Texts:")
+for text in processed_texts:
+    print(text)
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">URUCHAMIAMY PLLUM-A - NA KLASTRZE RAY</span>
+				<pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="|5-16|18-39|41-53"><script type="text/template">
+import ray
+
+ray.init(address="auto", ignore_reinit_error=True)  # Connect to Ray cluster
+
+# Sample texts
+texts = [
+    "Witaj świecie",
+    "Napisz wiersz",
+    "Opowiedz o sobie",
+    "Napisz fraszkę"
+]
+
+BATCH_SIZE = 2
+
+# Split texts into batches
+batches = [texts[i:i + BATCH_SIZE] for i in range(0, len(texts), BATCH_SIZE)]
+
+@ray.remote(num_gpus=1)
+def process_batch(batch):
+    import random
+    from mistralrs import ChatCompletionRequest, Runner, Which
+
+    runner = Runner(which=Which.Plain(model_id="CYFRAGOVPL/Llama-PLLuM-8B-chat"))
+
+    res = [runner.send_chat_completion_request(
+            ChatCompletionRequest(
+                model="mistral",
+                messages=[
+                    #{"role": "system", "content": persona},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=256,
+                presence_penalty=1.0,
+                top_p=random.uniform(0.1, 0.5),
+                temperature=random.uniform(0.1, 0.5),
+            )
+        ).choices[0].message.content for prompt in batch]
+    
+    return res
+
+# Send batches to workers
+futures = [process_batch.remote(batch) for batch in batches]
+
+# Retrieve processed results
+processed_batches = ray.get(futures, timeout=1000)
+
+# Merge all results
+processed_texts = [text for batch in processed_batches for text in batch]
+
+# Print results
+print("Processed Texts:")
+for text in processed_texts:
+    print(text)
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">USUWAMY INFRASTRUKTURĘ ZA POMOCA TERRAFORM</span>
+				<pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1"><script type="text/template">
+terraform destroy
+					</script></code></pre>
+			</section>
+
+			<section data-auto-animate data-transition="none">
+				<span class="luckiest" style="font-size: 50px;">KONIEC</br></span>
+
+				<span class="luckiest" style="font-size: 30px;">
+					<a href="https://www.youtube.com/qooba">🎬 https://www.youtube.com/qooba</a><br />
+					<a href="https://discord.com/invite/TfuTKcUC?utm_source=Discord%20Widget&utm_medium=Connect">💬
+						SPEAKLEASH DISCORD</a></span>
+			</section>
+
+
+
+
+
+		</div>
+
+	</div>
+
+	<script src="/revealjs/dist/reveal.js"></script>
+	<script src="/revealjs/plugin/zoom/zoom.js"></script>
+	<script src="/revealjs/plugin/notes/notes.js"></script>
+	<script src="/revealjs/plugin/search/search.js"></script>
+	<script src="/revealjs/plugin/markdown/markdown.js"></script>
+	<script src="/revealjs/plugin/highlight/highlight.js"></script>
+	<script>
+
+		// Also available as an ES module, see:
+		// https://revealjs.com/initialization/
+		Reveal.initialize({
+			controls: true,
+			progress: true,
+			center: true,
+			hash: true,
+
+			// Learn about plugins: https://revealjs.com/plugins/
+			plugins: [RevealZoom, RevealNotes, RevealSearch, RevealMarkdown, RevealHighlight],
+			dependencies: [{ src: '/revealjs/plugin/gamepad/gamepad.js', async: true }]
+		});
+
+	</script>
+
+</body>
+
+</html>
