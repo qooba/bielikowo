@@ -62,7 +62,7 @@
       </section>
 
       <section data-auto-animate data-transition="none">
-        <span class="luckiest" style="font-size: 50px;">Jak skwantyzować Bielika ?<br/>Model jest dostępny na <a href="https://huggingface.co/speakleash/Bielik-11B-v2.6-Instruct-bnb-4bit" target="_blank">huggingface</a></span>
+        <span class="luckiest" style="font-size: 50px;">Jak skwantyzować Bielika ?</span>
         <pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="|3-8|10-23"><script type="text/template">
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
@@ -88,6 +88,7 @@ save_directory = "./Bielik-11B-v2.6-bnb-4bit"
 model.save_pretrained(save_directory)
 tokenizer.save_pretrained(save_directory)
 					</script></code></pre>
+        <span class="luckiest" style="font-size: 50px;">Model jest dostępny na <a href="https://huggingface.co/speakleash/Bielik-11B-v2.6-Instruct-bnb-4bit" target="_blank">huggingface</a></span>
       </section>
 
 
