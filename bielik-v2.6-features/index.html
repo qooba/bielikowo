@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+
+  <title>BIELIKOWO - BIELIK v2.6 v3.0 - CO NOWEGO ?</title>
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link rel="stylesheet" href="/revealjs/dist/reset.css">
+  <link rel="stylesheet" href="/revealjs/dist/reveal.css">
+  <!-- <link rel="stylesheet" href="dist/theme/black.css" id="theme"> -->
+  <link rel="stylesheet" href="/revealjs/dist/theme/white.css" id="theme">
+
+  <!-- <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"> -->
+  <link href="https://fonts.googleapis.com/css2?family=Fontdiner+Swanky&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap" rel="stylesheet">
+  <!-- Theme used for syntax highlighting of code -->
+  <link rel="stylesheet" href="/revealjs/plugin/highlight/styles/stackoverflow-light.css">
+  <style>
+    .swanky {
+      font-family: 'Fontdiner Swanky' !important;
+    }
+
+    .luckiest {
+      font-family: 'Luckiest Guy' !important;
+    }
+
+    .code-wrapper {
+      width: 120% !important;
+      margin-left: -10% !important;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="reveal">
+
+    <!-- Any section element inside of this container is displayed as a slide -->
+    <div class="slides">
+
+      <section data-background="images/title3.png" data-background-size="80%"></section>
+
+      <section>
+
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="flex: 1; padding-right: 40px;">
+            <a href="https://colab.research.google.com/drive/1X5h2654Buxw8zv_HrH9L6ncJHCw7JUls?usp=sharing"
+              target="_blank">
+              <span class="luckiest" style="font-size: 70px;">colab notebook</span>
+            </a>
+          </div>
+          <div style="flex: 1; text-align: right;">
+            <img src="images/notebook2.png" style="max-width: 500px; max-height: 500px;" />
+          </div>
+        </div>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">Instalujemy biblioteki i pobieramy chat template</span>
+        <pre data-id="code-animation"><code class="hljs bash" data-trim data-line-numbers="1-3|5-7"><script type="text/template">
+!pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
+!pip install --no-deps xformers trl peft accelerate bitsandbytes
+!pip install tweaktune
+
+# CHAT TEMPLATE BASED ON:
+# https://raw.githubusercontent.com/speakleash/bielik-tools/refs/heads/main/tools/bielik_advanced_chat_template.jinja
+!curl -LO https://gist.githubusercontent.com/qooba/9dca1f75113d463e5e053adcbc112fb3/raw/25842cc94d9471ac064785f15888d2e36146d1d6/chat_template.jinja
+					</script></code></pre>
+      </section>
+
+      <section>
+        <center>
+          <img src="images/agreement.png" width="100%" />
+          <br />
+          <span class="luckiest" style="font-size: 30px;">Dla modeli:<br />
+            speakleash/Bielik-4.5B-v3.0-Instruct<br />
+            speakleash/Bielik-1.5B-v3.0-Instruct<br />
+            wymagana jest akceptacja regulaminu.</span>
+        </center>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">Ustawiamy token huggingface (tylko dla modeli v3.0 4.5b i
+          1.5b)</span>
+        <pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-5"><script type="text/template">
+import getpass
+import os
+
+print('Enter HF_TOKEN:')
+os.environ["HF_TOKEN"] = getpass.getpass()
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">Wybieramy model</span>
+        <pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-5|6-7"><script type="text/template">
+bielik_11b_v2_6="speakleash/Bielik-11B-v2.6-Instruct-bnb-4bit"
+bielik_11b_v2_5="speakleash/Bielik-11B-v2.5-Instruct-bnb-4bit"
+bielik_4_5b_v3_0="speakleash/Bielik-4.5B-v3.0-Instruct"
+bielik_1_5b_v3_0="speakleash/Bielik-1.5B-v3.0-Instruct"
+
+model_name = bielik_11b_v2_6 # @param ["bielik_11b_v2_6", "bielik_11b_v2_5", "bielik_4_5b_v3_0", "bielik_1_5b_v3_0"] {type:"raw"}
+print(model_name)
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">Wczytujemy model</span>
+        <pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-15|16-25|27"><script type="text/template">
+from unsloth import FastLanguageModel
+from unsloth.chat_templates import get_chat_template
+import os
+
+
+max_seq_length = 2048
+dtype = None
+load_in_4bit = False
+
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name = model_name,
+    max_seq_length = max_seq_length,
+    dtype = dtype,
+    load_in_4bit = load_in_4bit,
+)
+
+chat_template = open("chat_template.jinja","r").read()
+eos_token = "<|im_end|>"
+
+tokenizer = get_chat_template(
+    tokenizer,
+    chat_template = (chat_template, eos_token,),
+    mapping = {"role" : "from", "content" : "value", "user" : "human", "assistant" : "gpt"},
+    map_eos_token = True,
+)
+
+FastLanguageModel.for_inference(model)
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">Promptujemy !!!</span>
+        <pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-7|9-14"><script type="text/template">
+from transformers import TextStreamer
+
+prompt = 'Napisz piosenkę o modelu bielik w nowej wersji 2.6' # @param {type:"string"}
+
+messages = [
+    {"role": "user", "content": prompt},
+]
+
+text_streamer = TextStreamer(tokenizer)
+inputs = tokenizer.apply_chat_template(messages, tokenize = True, add_generation_prompt = True, return_tensors = "pt", enable_thinking=True).to("cuda")
+_ = model.generate(input_ids = inputs, streamer = text_streamer, max_new_tokens = 1024, use_cache = True)
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">Chat template ?</span>
+        <pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-2"><script type="text/template">
+inputs = tokenizer.apply_chat_template(messages, tokenize = False, add_generation_prompt = True, return_tensors = "pt", enable_thinking=True)
+print(inputs)
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">Chat template</span>
+        <pre data-id="code-animation"><code class="hljs xml" data-trim data-line-numbers="1-3"><script type="text/template">
+<s><|im_start|>user
+Napisz piosenkę o modelu bielik w nowej wersji 2.6<|im_end|>
+<|im_start|>assistant
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 90px;">TOOLS CALLING</span>
+      </section>
+
+      <section data-background="images/fc01.png" data-background-size="80%"></section>
+      <section data-background="images/fc02.png" data-background-size="80%"></section>
+      <section data-background="images/fc03.png" data-background-size="80%"></section>
+      <section data-background="images/fc04.png" data-background-size="80%"></section>
+      <section data-background="images/fc05.png" data-background-size="80%"></section>
+      <section data-background="images/fc06.png" data-background-size="80%"></section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">Przykładowe funkcje</span>
+        <pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="5-13|15-20|22-29"><script type="text/template">
+from pydantic import BaseModel, Field
+from typing import List, Optional
+import random
+
+def place_order(
+    user_id: str = Field(..., description="ID użytkownika składającego zamówienie"),
+    product_id: str = Field(..., description="ID zamawianego produktu"),
+    quantity: int = Field(..., description="Ilość zamawianego produktu"),
+    delivery_address: str = Field(..., description="Adres dostawy"),
+):
+    """Złóż zamówienie na produkt w e-bazarze."""
+    print(f"SKŁADAM ZAMÓWIENIE:\n user_id: {user_id}, \nproduct_id: {product_id}, \nquantity: {quantity}, \ndelivery_address: {delivery_address}")
+    return {"result": f"ZAMÓWIENIE :\n user_id: {user_id}, \nproduct_id: {product_id}, \nquantity: {quantity}, \ndelivery_address: {delivery_address}\n WYSŁANE DO REALIZACJI"}
+
+def get_order_status(
+    order_id: str = Field(..., description="ID zamówienia"),
+):
+    """Pobierz status zamówienia w e-bazarze."""
+    print(f"STATUS ZAMÓWIENIA:\n order_id: {order_id}")
+    return {"status": f"ZAMÓWIENIE order_id: {order_id} W TRAKCIE REALIZACJI"}
+
+def search_products(
+    query: str = Field(..., description="Fraza wyszukiwania produktów"),
+    min_price: Optional[float] = Field(None, description="Minimalna cena"),
+    max_price: Optional[float] = Field(None, description="Maksymalna cena"),
+):
+    """Wyszukaj produkty w e-bazarze według frazy, kategorii i zakresu cen."""
+    print(f"SZUKAM PRODUKTÓW:\n query: {query},\n min_price: {min_price},\n max_price: {max_price}")
+    return {"result": f"ZNALAZŁEM PRODUKT:\n {query},\n za kwotę {round(random.uniform(min_price, max_price),2)} dostępna ilość {random.randint(0,9)}"}
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">FUNKCJA -> SCHEMA</span>
+        <pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-4"><script type="text/template">
+from tweaktune.tools import Tools
+
+tools = Tools([place_order, get_order_status, search_products])
+tools.tools
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">TOOL CALLING - CHAT TEMPLATE ?</span>
+        <pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-11"><script type="text/template">
+messages = [
+    {"role": "user", "content": """Szukam nowego smarfona z 16 gb ramu. 
+Chciałbym na to przeznaczyć od 2000 do 3000 zł. 
+I jeszcze nowego laptopa od 3000 do 4000 zł"""},
+]
+
+inputs = tokenizer.apply_chat_template(
+                        messages, tokenize = False, 
+                        add_generation_prompt = True, return_tensors = "pt", 
+                        enable_thinking=True, tools=tools.tools)
+print(inputs)
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">TOOL CALLING - CHAT TEMPLATE</span>
+        <pre data-id="code-animation"><code class="hljs xml" data-trim data-line-numbers="|9-25|57-59"><script type="text/template">
+<s><|im_start|>system
+You are provided with tool signatures that you can use to assist with the user's query. You do not have to use a tool if you can respond adequately without it. Do not make assumptions about the values to use in tool calls. If the user's message is missing required parameters or if you do not have an appropriate tool to fulfill the request, inform the user or ask for clarification instead of attempting to call any tools.
+
+If you decide to invoke a tool, you MUST use the following JSON format:
+`<tool_call>{"name": <tool-name>, "arguments": <args-dict>}</tool_call>`
+
+Below is a list of tools in JSON format that you can invoke:
+
+{
+    "type": "function",
+    "name": "place_order",
+    "description": "Złóż zamówienie na produkt w e-bazarze.",
+    "parameters": {
+        "properties": "{\"user_id\": {\"description\": \"ID użytkownika składającego zamówienie\", \"type\": \"string\"}, \"product_id\": {\"description\": \"ID zamawianego produktu\", \"type\": \"string\"}, \"quantity\": {\"description\": \"Ilość zamawianego produktu\", \"type\": \"integer\"}, \"delivery_address\": {\"description\": \"Adres dostawy\", \"type\": \"string\"}}",
+        "required": [
+            "user_id",
+            "product_id",
+            "quantity",
+            "delivery_address"
+        ],
+        "type": "object",
+        "additionalProperties": false
+    },
+    "strict": true
+}
+
+{
+    "type": "function",
+    "name": "get_order_status",
+    "description": "Pobierz status zamówienia w e-bazarze.",
+    "parameters": {
+        "properties": "{\"order_id\": {\"description\": \"ID zamówienia\", \"type\": \"string\"}}",
+        "required": [
+            "order_id"
+        ],
+        "type": "object",
+        "additionalProperties": false
+    },
+    "strict": true
+}
+
+{
+    "type": "function",
+    "name": "search_products",
+    "description": "Wyszukaj produkty w e-bazarze według frazy, kategorii i zakresu cen.",
+    "parameters": {
+        "properties": "{\"query\": {\"description\": \"Fraza wyszukiwania produktów\", \"type\": \"string\"}, \"min_price\": {\"default\": null, \"description\": \"Minimalna cena\", \"type\": [\"number\", \"null\"]}, \"max_price\": {\"default\": null, \"description\": \"Maksymalna cena\", \"type\": [\"number\", \"null\"]}}",
+        "required": [
+            "query"
+        ],
+        "type": "object",
+        "additionalProperties": false
+    },
+    "strict": true
+}
+<|im_end|>
+<|im_start|>user
+Szukam nowego smarfona z 16 gb ramu. Chciałbym na to przeznaczyć od 2000 do 3000 zł. I jeszcze nowego laptopa od 3000 do 4000 zł<|im_end|>
+<|im_start|>assistant
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">TOOL CALLING - KROK 1</span>
+        <pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-15"><script type="text/template">
+messages = [
+    {"role": "user", "content": """Szukam nowego smarfona z 16 gb ramu. 
+Chciałbym na to przeznaczyć od 2000 do 3000 zł. 
+I jeszcze nowego laptopa od 3000 do 4000 zł"""},
+]
+
+inputs = tokenizer.apply_chat_template(
+                      messages, tokenize = True, add_generation_prompt = True, 
+                      return_tensors = "pt", enable_thinking=True, 
+                      tools=tools.tools).to("cuda")
+
+output_ids = model.generate(input_ids = inputs, max_new_tokens = 1024, use_cache = True)
+input_size = inputs[0].shape[0]
+output_text = tokenizer.decode(output_ids[0][input_size:], skip_special_tokens=False)
+output_text
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">TOOL CALLING - KROK 1<br />ODPOWIEDŹ</span>
+        <pre data-id="code-animation"><code class="hljs xml" data-trim data-line-numbers="1-4"><script type="text/template">
+...
+<tool_call> {"name": "search_products", "arguments": {"query": "nowy smarfon 16gb ram", "min_price": 2000, "max_price": 3000}}</tool_call>
+<tool_call> {"name": "search_products", "arguments": {"query": "nowy laptop", "min_price": 3000, "max_price": 4000}}</tool_call>
+<|im_end|>
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">TOOL CALLING - KROK 2</span>
+        <pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-2|4"><script type="text/template">
+tools.messages = messages
+tools(output_text)
+
+tools.messages
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">TOOL CALLING - KROK 3<br />CHAT TEMPLATE ?</span>
+        <pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-15"><script type="text/template">
+inputs = tokenizer.apply_chat_template(tools.messages, tokenize = False, add_generation_prompt = True, return_tensors = "pt", enable_thinking=True, tools=tools.tools)
+print(inputs)
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">TOOL CALLING - KROK 3<br />CHAT TEMPLATE</span>
+        <pre data-id="code-animation"><code class="hljs xml" data-trim data-line-numbers="57-58|59-62|63-67"><script type="text/template">
+<s><|im_start|>system
+You are provided with tool signatures that you can use to assist with the user's query. You do not have to use a tool if you can respond adequately without it. Do not make assumptions about the values to use in tool calls. If the user's message is missing required parameters or if you do not have an appropriate tool to fulfill the request, inform the user or ask for clarification instead of attempting to call any tools.
+
+If you decide to invoke a tool, you MUST use the following JSON format:
+`<tool_call>{"name": <tool-name>, "arguments": <args-dict>}</tool_call>`
+
+Below is a list of tools in JSON format that you can invoke:
+
+{
+    "type": "function",
+    "name": "place_order",
+    "description": "Złóż zamówienie na produkt w e-bazarze.",
+    "parameters": {
+        "properties": "{\"user_id\": {\"description\": \"ID użytkownika składającego zamówienie\", \"type\": \"string\"}, \"product_id\": {\"description\": \"ID zamawianego produktu\", \"type\": \"string\"}, \"quantity\": {\"description\": \"Ilość zamawianego produktu\", \"type\": \"integer\"}, \"delivery_address\": {\"description\": \"Adres dostawy\", \"type\": \"string\"}}",
+        "required": [
+            "user_id",
+            "product_id",
+            "quantity",
+            "delivery_address"
+        ],
+        "type": "object",
+        "additionalProperties": false
+    },
+    "strict": true
+}
+
+{
+    "type": "function",
+    "name": "get_order_status",
+    "description": "Pobierz status zamówienia w e-bazarze.",
+    "parameters": {
+        "properties": "{\"order_id\": {\"description\": \"ID zamówienia\", \"type\": \"string\"}}",
+        "required": [
+            "order_id"
+        ],
+        "type": "object",
+        "additionalProperties": false
+    },
+    "strict": true
+}
+
+{
+    "type": "function",
+    "name": "search_products",
+    "description": "Wyszukaj produkty w e-bazarze według frazy, kategorii i zakresu cen.",
+    "parameters": {
+        "properties": "{\"query\": {\"description\": \"Fraza wyszukiwania produktów\", \"type\": \"string\"}, \"min_price\": {\"default\": null, \"description\": \"Minimalna cena\", \"type\": [\"number\", \"null\"]}, \"max_price\": {\"default\": null, \"description\": \"Maksymalna cena\", \"type\": [\"number\", \"null\"]}}",
+        "required": [
+            "query"
+        ],
+        "type": "object",
+        "additionalProperties": false
+    },
+    "strict": true
+}
+<|im_end|>
+<|im_start|>user
+Szukam nowego smarfona z 16 gb ramu. Chciałbym na to przeznaczyć od 2000 do 3000 zł. I jeszcze nowego laptopa od 3000 do 4000 zł<|im_end|>
+<|im_start|>assistant
+<tool_call>{"name": "search_products", "arguments": {"query": "nowy smarfon 16gb ram", "min_price": 2000, "max_price": 3000}}</tool_call>
+<tool_call>{"name": "search_products", "arguments": {"query": "nowy laptop", "min_price": 3000, "max_price": 4000}}</tool_call>
+<|im_end|>
+<|im_start|>tool
+{"result": "ZNALAZŁEM PRODUKT:\n nowy smarfon 16gb ram,\n za kwotę 2939.08 dostępna ilość 9"}<|im_end|>
+<|im_start|>tool
+{"result": "ZNALAZŁEM PRODUKT:\n nowy laptop,\n za kwotę 3307.86 dostępna ilość 9"}<|im_end|>
+<|im_start|>assistant
+					</script></code></pre>
+      </section>
+
+
+
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">TOOL CALLING - KROK 3</span>
+        <pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-15"><script type="text/template">
+inputs = tokenizer.apply_chat_template(tools.messages, tokenize = True, add_generation_prompt = True, return_tensors = "pt", enable_thinking=True, tools=tools.tools).to("cuda")
+output_ids = model.generate(input_ids = inputs, max_new_tokens = 1024, use_cache = True)
+input_size = inputs[0].shape[0]
+output_text = tokenizer.decode(output_ids[0][input_size:], skip_special_tokens=False)
+output_text
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">TOOL CALLING - KROK 3<br />ODPOWIEDŹ</span>
+        <pre data-id="code-animation"><code class="hljs xml" data-trim data-line-numbers="1-6"><script type="text/template">
+...
+Znaleziono produkty odpowiadające Twoim kryteriom. 
+Nowy smartfon z 16 GB RAM jest dostępny za 2939.08 zł, 
+a dostępna ilość to 9 sztuk. 
+Nowy laptop w podanym zakresie cenowym kosztuje 3307.86 zł, 
+a dostępna ilość to również 9 sztuk.<|im_end|>'
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 90px;">STRUCTURED OUTPUT</span>
+      </section>
+
+      <section data-background="images/so01.png" data-background-size="80%"></section>
+      <section data-background="images/so02.png" data-background-size="80%"></section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">STRUCTURED OUTPUT - CHAT TEMPLATE ?</span>
+        <pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="4-9|12-18|20-26|20|26"><script type="text/template">
+from pydantic import BaseModel, Field
+from typing import Optional
+
+class ComputerSpec(BaseModel):
+    cpu: str = Field(..., description="CPU model")
+    ram_gb: int = Field(..., description="Amount of RAM in GB")
+    storage_gb: int = Field(..., description="Storage capacity in GB")
+    gpu: Optional[str] = Field(None, description="GPU model (optional)")
+    os: Optional[str] = Field(None, description="Operating system (optional)")
+
+
+structured_messages = [
+    {"role": "user", "content": """Przygotuj opis komputera. 
+Komputer wyposażony jest w procesor Intel Core i7-12700K, 
+32 GB pamięci RAM, 
+dysk SSD o pojemności 1 TB oraz kartę graficzną NVIDIA GeForce RTX 3080. 
+Zainstalowany system operacyjny to Ubuntu 22.04."""},
+]
+
+json_schema=ComputerSpec.model_json_schema()
+
+inputs = tokenizer.apply_chat_template(
+                    structured_messages, tokenize = False, 
+                    add_generation_prompt = True, 
+                    return_tensors = "pt", enable_thinking=True, 
+                    json_schema=json_schema)
+
+print(inputs)
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">STRUCTURED OUTPUT - CHAT TEMPLATE</span>
+        <pre data-id="code-animation"><code class="hljs xml" data-trim data-line-numbers="|4-55|56-62"><script type="text/template">
+<s><|im_start|>system
+Always respond in valid JSON format, strictly following the provided schema.Do not include any extra text, explanations, or comments outside the JSON structure.Ensure that all responses adhere precisely to the given schema.
+The expected schema is: 
+{
+    "properties": {
+        "cpu": {
+            "description": "CPU model",
+            "title": "Cpu",
+            "type": "string"
+        },
+        "ram_gb": {
+            "description": "Amount of RAM in GB",
+            "title": "Ram Gb",
+            "type": "integer"
+        },
+        "storage_gb": {
+            "description": "Storage capacity in GB",
+            "title": "Storage Gb",
+            "type": "integer"
+        },
+        "gpu": {
+            "anyOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "default": null,
+            "description": "GPU model (optional)",
+            "title": "Gpu"
+        },
+        "os": {
+            "anyOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "default": null,
+            "description": "Operating system (optional)",
+            "title": "Os"
+        }
+    },
+    "required": [
+        "cpu",
+        "ram_gb",
+        "storage_gb"
+    ],
+    "title": "ComputerSpec",
+    "type": "object"
+}<|im_end|>
+<|im_start|>user
+Przygotuj opis komputera. 
+Komputer wyposażony jest w procesor Intel Core i7-12700K, 
+32 GB pamięci RAM, dysk SSD o pojemności 1 TB 
+oraz kartę graficzną NVIDIA GeForce RTX 3080. 
+Zainstalowany system operacyjny to Ubuntu 22.04. <|im_end|>
+<|im_start|>assistant
+					</script></code></pre>
+      </section>
+
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">STRUCTURED OUTPUT - KROK 1</span>
+        <pre data-id="code-animation"><code class="hljs python" data-trim data-line-numbers="1-15"><script type="text/template">
+inputs = tokenizer.apply_chat_template(tools.messages, tokenize = True, add_generation_prompt = True, return_tensors = "pt", enable_thinking=True, tools=tools.tools).to("cuda")
+output_ids = model.generate(input_ids = inputs, max_new_tokens = 1024, use_cache = True)
+input_size = inputs[0].shape[0]
+output_text = tokenizer.decode(output_ids[0][input_size:], skip_special_tokens=False)
+output_text
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">STRUCTURED OUTPUT - KROK 1<br />ODPOWIEDŹ</span>
+        <pre data-id="code-animation"><code class="hljs xml" data-trim data-line-numbers="|3-9|2"><script type="text/template">
+...
+```json
+{
+      "cpu": "Intel Core i7-12700K",
+      "ram_gb": 32,
+      "storage_gb": 1024,
+      "gpu": "NVIDIA GeForce RTX 3080",
+      "os": "Ubuntu 22.04"
+}```
+<|im_end|>
+					</script></code></pre>
+      </section>
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">STRUCTURED OUTPUT - PARSUJEMY 😉</span>
+        <pre data-id="code-animation"><code class="hljs python" data-trim><script type="text/template">
+from tweaktune.structured import parse
+parse(output_text, ComputerSpec)
+					</script></code></pre>
+        <pre><code>
+ComputerSpec(
+  cpu='Intel Core i7-12700K', 
+  ram_gb=32, 
+  storage_gb=1024, 
+  gpu='NVIDIA GeForce RTX 3080', 
+  os='Ubuntu 22.04')
+					</code></pre>
+
+      </section>
+
+
+      <section data-auto-animate data-transition="none">
+        <span class="luckiest" style="font-size: 50px;">KONIEC</br></span>
+
+        <span class="luckiest" style="font-size: 30px;">
+          <a href="https://www.youtube.com/qooba">🎬 https://www.youtube.com/qooba</a><br />
+          <a href="https://discord.com/invite/TfuTKcUC?utm_source=Discord%20Widget&utm_medium=Connect">💬
+            SPEAKLEASH DISCORD</a></span>
+      </section>
+
+
+
+
+
+    </div>
+
+  </div>
+
+  <script src="/revealjs/dist/reveal.js"></script>
+  <script src="/revealjs/plugin/zoom/zoom.js"></script>
+  <script src="/revealjs/plugin/notes/notes.js"></script>
+  <script src="/revealjs/plugin/search/search.js"></script>
+  <script src="/revealjs/plugin/markdown/markdown.js"></script>
+  <script src="/revealjs/plugin/highlight/highlight.js"></script>
+  <script>
+
+    // Also available as an ES module, see:
+    // https://revealjs.com/initialization/
+    Reveal.initialize({
+      controls: true,
+      progress: true,
+      center: true,
+      hash: true,
+
+      // Learn about plugins: https://revealjs.com/plugins/
+      plugins: [RevealZoom, RevealNotes, RevealSearch, RevealMarkdown, RevealHighlight],
+      dependencies: [{ src: '/revealjs/plugin/gamepad/gamepad.js', async: true }]
+    });
+
+  </script>
+
+</body>
+
+</html>
