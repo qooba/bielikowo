@@ -514,6 +514,7 @@ class ComputerSpec(BaseModel):
     gpu: Optional[str] = Field(None, description="GPU model (optional)")
     os: Optional[str] = Field(None, description="Operating system (optional)")
 
+json_schema=ComputerSpec.model_json_schema()
 
 structured_messages = [
     {"role": "user", "content": """Przygotuj opis komputera. 
@@ -522,8 +523,6 @@ Komputer wyposażony jest w procesor Intel Core i7-12700K,
 dysk SSD o pojemności 1 TB oraz kartę graficzną NVIDIA GeForce RTX 3080. 
 Zainstalowany system operacyjny to Ubuntu 22.04."""},
 ]
-
-json_schema=ComputerSpec.model_json_schema()
 
 inputs = tokenizer.apply_chat_template(
                     structured_messages, tokenize = False, 
